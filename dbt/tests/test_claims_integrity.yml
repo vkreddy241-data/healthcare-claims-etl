@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: stg_claims
+    description: "Staging layer for raw healthcare claims"
+    columns:
+      - name: claim_id
+        description: "Unique claim identifier"
+        tests:
+          - unique
+          - not_null
+      - name: member_id
+        tests:
+          - not_null
+      - name: billed_amount
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: paid_amount
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: claim_status
+        tests:
+          - accepted_values:
+              values: ['APPROVED', 'DENIED', 'PENDING', 'ADJUSTED', 'VOID']
+      - name: claim_type
+        tests:
+          - accepted_values:
+              values: ['medical', 'pharmacy', 'dental', 'vision']
+
+  - name: mart_claims_summary
+    description: "Monthly claims KPI mart"
+    columns:
+      - name: total_claims
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: denial_rate_pct
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+
+sources:
+  - name: claims_raw
+    database: claims_dw
+    schema: raw
+    tables:
+      - name: fact_claims
+        description: "Raw claims loaded by Glue ETL"
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: ingested_at
